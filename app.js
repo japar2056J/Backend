@@ -6,38 +6,65 @@ require('dotenv').config();
 
 const app = express();
 
-// ========== MIDDLEWARE ==========
+/* ===============================
+   CORS CONFIGURATION
+================================ */
 app.use(cors({
-  origin: [
-    'http://localhost:1000',
-    'http://localhost:3000',
-    'http://127.0.0.1:1000',
-    'http://127.0.0.1:3000'
-  ],
+  origin: true, // allow all origins (recommended for API backend)
   credentials: true
 }));
 
+/* ===============================
+   BASIC MIDDLEWARE
+================================ */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-// Parse cookies so we can read session cookie set by Firebase
 app.use(cookieParser());
 
-// Global rate limiter (e.g., 100 requests per 15 minutes per IP)
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+/* ===============================
+   RATE LIMITER
+================================ */
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false
+}));
 
-// ========== LOGGING MIDDLEWARE ==========
+/* ===============================
+   REQUEST LOGGER
+================================ */
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
   next();
 });
 
-// ========== ROUTES ==========
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+/* ===============================
+   ROOT ROUTE
+================================ */
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Backend API is running 🚀',
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
+  });
 });
 
-// Import routes
+/* ===============================
+   HEALTH CHECK
+================================ */
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
+});
+
+/* ===============================
+   ROUTES
+================================ */
 const authRoutes = require('./routes/authRoutes');
 const vendorRoutes = require('./routes/vendorRoutes');
 const productRoutes = require('./routes/productRoutes');
@@ -48,7 +75,6 @@ const kursRoutes = require('./routes/kursRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const auditRoutes = require('./routes/auditRoutes');
 
-// Register routes
 app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/vendors', vendorRoutes);
@@ -59,21 +85,25 @@ app.use('/api/riwayat', riwayatRoutes);
 app.use('/api/kurs', kursRoutes);
 app.use('/api/audit', auditRoutes);
 
-// ========== ERROR HANDLING ==========
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  const status = err.status || 500;
-  res.status(status).json({
-    success: false,
-    error: err.message || 'Internal Server Error'
-  });
-});
-
-// 404 handler
+/* ===============================
+   404 HANDLER
+================================ */
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    error: 'Route not found'
+    error: 'Route not found',
+    path: req.originalUrl
+  });
+});
+
+/* ===============================
+   GLOBAL ERROR HANDLER
+================================ */
+app.use((err, req, res, next) => {
+  console.error('🔥 Error:', err);
+  res.status(err.status || 500).json({
+    success: false,
+    error: err.message || 'Internal Server Error'
   });
 });
 
